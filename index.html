@@ -781,6 +781,8 @@
 
       if (!configured) {
         els.graphStatus.textContent = "Not configured";
+      } else if (!window.msal) {
+        els.graphStatus.textContent = "Sign-in library unavailable";
       } else if (account) {
         els.graphStatus.textContent = `Signed in: ${account.username}`;
       } else {
@@ -1092,9 +1094,20 @@
     }
 
     async function signInMicrosoft() {
-      const app = initialiseMsal();
-      if (!app || !isGraphConfigured()) {
+      if (!isGraphConfigured()) {
         updateSyncMessage("Enter and save Tenant ID, Client ID, Site ID, and List ID before signing in.");
+        return null;
+      }
+
+      if (!window.msal) {
+        updateSyncMessage("Microsoft sign-in library did not load. Check internet access and allow https://alcdn.msauth.net, then refresh this page.");
+        refreshGraphStatus();
+        return null;
+      }
+
+      const app = initialiseMsal();
+      if (!app) {
+        updateSyncMessage("Microsoft sign-in could not start. Re-save the Graph config and refresh the page.");
         return null;
       }
 
