@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MediScribe AI</title>
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <style>
     :root {
       color-scheme: light;
@@ -398,6 +399,19 @@
       gap: 8px;
     }
 
+    .sync-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .sync-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
     .actions {
       display: flex;
       align-items: center;
@@ -452,6 +466,10 @@
       }
 
       .meta-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .sync-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -543,6 +561,41 @@
       <section class="panel section">
         <div class="section-head">
           <div>
+            <h2>Microsoft Graph Sync</h2>
+            <span class="small">Connect to Microsoft 365 to save notes into a SharePoint List.</span>
+          </div>
+          <span id="graphStatus" class="pill">Not configured</span>
+        </div>
+        <div class="sync-grid">
+          <label>
+            Tenant ID
+            <input id="tenantIdInput" placeholder="Directory tenant ID">
+          </label>
+          <label>
+            Client ID
+            <input id="clientIdInput" placeholder="Application client ID">
+          </label>
+          <label>
+            SharePoint Site ID
+            <input id="siteIdInput" placeholder="Graph site ID">
+          </label>
+          <label>
+            SharePoint List ID
+            <input id="listIdInput" placeholder="Graph list ID">
+          </label>
+        </div>
+        <div class="sync-actions" style="margin-top: 14px;">
+          <button id="saveGraphConfigBtn" class="ghost" type="button">Save Graph config</button>
+          <button id="microsoftSignInBtn" type="button">Sign in with Microsoft</button>
+          <button id="microsoftSignOutBtn" class="ghost" type="button">Sign out</button>
+          <button id="retrySyncBtn" class="ghost" type="button">Retry unsynced notes</button>
+        </div>
+        <div id="syncMessage" class="notice" style="margin-top: 12px;">Notes save locally first. When Microsoft sync is configured, new notes are also sent to SharePoint.</div>
+      </section>
+
+      <section class="panel section">
+        <div class="section-head">
+          <div>
             <h2>Structured Summary</h2>
             <span class="small">Review and edit each category before saving.</span>
           </div>
@@ -580,6 +633,7 @@
   <script>
     const accountKey = "mediscribe.accounts";
     const noteKey = "mediscribe.notes";
+    const graphConfigKey = "mediscribe.graphConfig";
     const els = {
       loginPanel: document.getElementById("loginPanel"),
       workspace: document.getElementById("workspace"),
@@ -607,6 +661,16 @@
       categoriseBtn: document.getElementById("categoriseBtn"),
       saveBtn: document.getElementById("saveBtn"),
       exportBtn: document.getElementById("exportBtn"),
+      graphStatus: document.getElementById("graphStatus"),
+      tenantIdInput: document.getElementById("tenantIdInput"),
+      clientIdInput: document.getElementById("clientIdInput"),
+      siteIdInput: document.getElementById("siteIdInput"),
+      listIdInput: document.getElementById("listIdInput"),
+      saveGraphConfigBtn: document.getElementById("saveGraphConfigBtn"),
+      microsoftSignInBtn: document.getElementById("microsoftSignInBtn"),
+      microsoftSignOutBtn: document.getElementById("microsoftSignOutBtn"),
+      retrySyncBtn: document.getElementById("retrySyncBtn"),
+      syncMessage: document.getElementById("syncMessage"),
       history: document.getElementById("history"),
       familyHistory: document.getElementById("familyHistory"),
       allergies: document.getElementById("allergies"),
@@ -622,6 +686,7 @@
     let isRecording = false;
     let draftCreatedAt = null;
     let lastTranscriptForCategories = "";
+    let msalApp = null;
 
     const categoryFields = [
       ["familyHistory", els.familyHistory],
@@ -641,6 +706,86 @@
 
     function writeStore(key, value) {
       localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function readGraphConfig() {
+      return readStore(graphConfigKey, {
+        tenantId: "",
+        clientId: "",
+        siteId: "",
+        listId: ""
+      });
+    }
+
+    function isGraphConfigured(config = readGraphConfig()) {
+      return Boolean(config.tenantId && config.clientId && config.siteId && config.listId);
+    }
+
+    function updateSyncMessage(message) {
+      els.syncMessage.textContent = message;
+    }
+
+    function hydrateGraphConfig() {
+      const config = readGraphConfig();
+      els.tenantIdInput.value = config.tenantId || "";
+      els.clientIdInput.value = config.clientId || "";
+      els.siteIdInput.value = config.siteId || "";
+      els.listIdInput.value = config.listId || "";
+      initialiseMsal();
+      refreshGraphStatus();
+    }
+
+    function saveGraphConfig() {
+      const config = {
+        tenantId: els.tenantIdInput.value.trim(),
+        clientId: els.clientIdInput.value.trim(),
+        siteId: els.siteIdInput.value.trim(),
+        listId: els.listIdInput.value.trim()
+      };
+      writeStore(graphConfigKey, config);
+      msalApp = null;
+      initialiseMsal();
+      refreshGraphStatus();
+      updateSyncMessage(isGraphConfigured(config)
+        ? "Graph config saved. Sign in with Microsoft before syncing notes."
+        : "Graph config saved, but all four fields are required before sync can run.");
+    }
+
+    function initialiseMsal() {
+      const config = readGraphConfig();
+      if (!window.msal || !config.tenantId || !config.clientId) {
+        msalApp = null;
+        return null;
+      }
+
+      if (!msalApp) {
+        msalApp = new msal.PublicClientApplication({
+          auth: {
+            clientId: config.clientId,
+            authority: `https://login.microsoftonline.com/${config.tenantId}`,
+            redirectUri: window.location.href.split("#")[0]
+          },
+          cache: {
+            cacheLocation: "sessionStorage",
+            storeAuthStateInCookie: false
+          }
+        });
+      }
+      return msalApp;
+    }
+
+    function refreshGraphStatus() {
+      const configured = isGraphConfigured();
+      const app = initialiseMsal();
+      const account = app ? app.getAllAccounts()[0] : null;
+
+      if (!configured) {
+        els.graphStatus.textContent = "Not configured";
+      } else if (account) {
+        els.graphStatus.textContent = `Signed in: ${account.username}`;
+      } else {
+        els.graphStatus.textContent = "Configured";
+      }
     }
 
     function normaliseUserId(id) {
@@ -858,11 +1003,13 @@
         createdAt: draftCreatedAt || new Date().toISOString(),
         savedAt: new Date().toISOString(),
         transcript: els.transcriptInput.value.trim(),
+        syncStatus: "pending",
+        syncError: "",
         summary: Object.fromEntries(categoryFields.map(([key, field]) => [key, field.value.trim()]))
       };
     }
 
-    function saveNote() {
+    async function saveNote() {
       if (!activeUser) return;
       categoriseTranscript();
       const note = buildNote();
@@ -875,8 +1022,9 @@
       notes.unshift(note);
       writeStore(noteKey, notes);
       renderHistory();
+      const synced = await syncSingleNote(note.id);
       clearDraft();
-      els.recordStatus.textContent = "Note saved";
+      els.recordStatus.textContent = synced ? "Note saved and synced" : "Note saved locally";
     }
 
     function renderHistory() {
@@ -889,9 +1037,15 @@
 
       els.history.innerHTML = notes.map((note) => {
         const complaint = note.summary.mainComplaints || "No main complaint recorded";
+        const syncLabel = note.syncStatus === "synced"
+          ? "Synced to SharePoint"
+          : note.syncStatus === "failed"
+            ? `Sync failed: ${note.syncError || "Unknown error"}`
+            : "Local only";
         return `
           <article class="record">
             <strong>${formatDateTime(note.savedAt)}</strong>
+            <span class="small">${escapeHtml(syncLabel)}</span>
             <p>${escapeHtml(complaint).replace(/\n/g, "<br>")}</p>
             <div class="record-actions">
               <button class="ghost" type="button" data-load-note="${note.id}">Load note</button>
@@ -916,6 +1070,13 @@
       els.recordStatus.textContent = "Loaded saved note for review";
     }
 
+    function updateStoredNote(noteId, updates) {
+      const notes = readStore(noteKey, []);
+      const nextNotes = notes.map((note) => note.id === noteId ? { ...note, ...updates } : note);
+      writeStore(noteKey, nextNotes);
+      renderHistory();
+    }
+
     function deleteNote(id) {
       if (!activeUser) return;
       const notes = readStore(noteKey, []);
@@ -928,6 +1089,135 @@
       writeStore(noteKey, notes.filter((item) => !(item.id === id && item.userId === activeUser.id)));
       renderHistory();
       els.recordStatus.textContent = "Saved note deleted";
+    }
+
+    async function signInMicrosoft() {
+      const app = initialiseMsal();
+      if (!app || !isGraphConfigured()) {
+        updateSyncMessage("Enter and save Tenant ID, Client ID, Site ID, and List ID before signing in.");
+        return null;
+      }
+
+      const result = await app.loginPopup({ scopes: ["Sites.ReadWrite.All"] });
+      refreshGraphStatus();
+      updateSyncMessage(`Signed in as ${result.account.username}.`);
+      return result.account;
+    }
+
+    async function signOutMicrosoft() {
+      const app = initialiseMsal();
+      if (!app) return;
+      const account = app.getAllAccounts()[0];
+      if (account) await app.logoutPopup({ account });
+      refreshGraphStatus();
+      updateSyncMessage("Signed out of Microsoft.");
+    }
+
+    async function getGraphToken() {
+      const app = initialiseMsal();
+      if (!app || !isGraphConfigured()) {
+        throw new Error("Microsoft Graph is not configured.");
+      }
+
+      let account = app.getAllAccounts()[0];
+      if (!account) {
+        account = await signInMicrosoft();
+      }
+
+      try {
+        const result = await app.acquireTokenSilent({
+          account,
+          scopes: ["Sites.ReadWrite.All"]
+        });
+        return result.accessToken;
+      } catch {
+        const result = await app.acquireTokenPopup({
+          account,
+          scopes: ["Sites.ReadWrite.All"]
+        });
+        return result.accessToken;
+      }
+    }
+
+    async function syncNoteToSharePoint(note) {
+      const config = readGraphConfig();
+      const token = await getGraphToken();
+      const response = await fetch(`https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(config.siteId)}/lists/${encodeURIComponent(config.listId)}/items`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fields: {
+            Title: `${note.userId} - ${formatDateTime(note.savedAt)}`,
+            UserID: note.userId,
+            UserName: note.userName,
+            Transcript: note.transcript,
+            FamilyHistory: note.summary.familyHistory,
+            Allergies: note.summary.allergies,
+            Timeframe: note.summary.timeframe,
+            MainComplaints: note.summary.mainComplaints,
+            OtherKeynotes: note.summary.otherKeynotes,
+            CreatedAt: note.createdAt,
+            SavedAt: note.savedAt,
+            ClientNoteID: note.id
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Graph ${response.status}: ${detail || response.statusText}`);
+      }
+
+      return response.json();
+    }
+
+    async function syncSingleNote(noteId) {
+      const note = readStore(noteKey, []).find((item) => item.id === noteId);
+      if (!note) return false;
+      if (note.syncStatus === "synced") return true;
+      if (!isGraphConfigured()) {
+        updateStoredNote(noteId, { syncStatus: "pending", syncError: "" });
+        updateSyncMessage("Note saved locally. Complete Graph config to sync to SharePoint.");
+        return false;
+      }
+
+      try {
+        const result = await syncNoteToSharePoint(note);
+        updateStoredNote(noteId, {
+          syncStatus: "synced",
+          syncError: "",
+          sharePointItemId: result.id || ""
+        });
+        updateSyncMessage("Note synced to SharePoint.");
+        return true;
+      } catch (error) {
+        updateStoredNote(noteId, {
+          syncStatus: "failed",
+          syncError: error.message
+        });
+        updateSyncMessage(`SharePoint sync failed: ${error.message}`);
+        return false;
+      }
+    }
+
+    async function retryUnsyncedNotes() {
+      if (!activeUser) return;
+      const unsynced = readStore(noteKey, [])
+        .filter((note) => note.userId === activeUser.id && note.syncStatus !== "synced")
+        .map((note) => note.id);
+
+      if (!unsynced.length) {
+        updateSyncMessage("There are no unsynced notes for this user.");
+        return;
+      }
+
+      updateSyncMessage(`Retrying ${unsynced.length} unsynced note(s).`);
+      for (const noteId of unsynced) {
+        await syncSingleNote(noteId);
+      }
     }
 
     function exportNotes() {
@@ -975,6 +1265,16 @@
     });
     els.saveBtn.addEventListener("click", saveNote);
     els.exportBtn.addEventListener("click", exportNotes);
+    els.saveGraphConfigBtn.addEventListener("click", saveGraphConfig);
+    els.microsoftSignInBtn.addEventListener("click", () => {
+      signInMicrosoft().catch((error) => updateSyncMessage(`Microsoft sign-in failed: ${error.message}`));
+    });
+    els.microsoftSignOutBtn.addEventListener("click", () => {
+      signOutMicrosoft().catch((error) => updateSyncMessage(`Microsoft sign-out failed: ${error.message}`));
+    });
+    els.retrySyncBtn.addEventListener("click", () => {
+      retryUnsyncedNotes().catch((error) => updateSyncMessage(`Retry failed: ${error.message}`));
+    });
     els.transcriptInput.addEventListener("input", () => {
       ensureDraftTime();
       window.clearTimeout(els.transcriptInput._timer);
@@ -993,6 +1293,7 @@
 
     setupSpeech();
     setMode("existing");
+    hydrateGraphConfig();
 
     const savedUserId = sessionStorage.getItem("mediscribe.activeUserId");
     const savedUser = savedUserId ? readStore(accountKey, {})[savedUserId] : null;
