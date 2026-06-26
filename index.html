@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediScribe AI</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-soft: #eef4f1;
+      --ink: #17201b;
+      --muted: #627067;
+      --line: #d9e2dd;
+      --accent: #0f766e;
+      --accent-dark: #0b5f59;
+      --warn: #b45309;
+      --danger: #b91c1c;
+      --ok: #15803d;
+      --shadow: 0 18px 50px rgba(17, 24, 39, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      border-radius: 7px;
+      min-height: 42px;
+      padding: 0 16px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    button:hover {
+      background: var(--accent-dark);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .ghost {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .ghost:hover {
+      background: #f9fbfa;
+    }
+
+    .danger {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .danger:hover {
+      background: #fecaca;
+    }
+
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 40px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: clamp(1.55rem, 3vw, 2.4rem);
+      letter-spacing: 0;
+    }
+
+    .brand span,
+    .small {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .userbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: #fff;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: 8px;
+    }
+
+    .login {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 410px);
+      overflow: hidden;
+      min-height: 600px;
+    }
+
+    .login-art {
+      padding: clamp(28px, 6vw, 64px);
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.92), rgba(19, 78, 74, 0.92)),
+        url("data:image/svg+xml,%3Csvg width='900' height='700' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='rgba(255,255,255,.26)' stroke-width='2'%3E%3Cpath d='M96 430c130-152 270-202 421-150s236 6 299-139'/%3E%3Cpath d='M81 505c160-98 287-119 382-64s206 43 334-35'/%3E%3Cpath d='M196 187c109 54 207 55 294 3s162-46 226 18'/%3E%3C/g%3E%3Cg fill='rgba(255,255,255,.22)'%3E%3Ccircle cx='170' cy='210' r='10'/%3E%3Ccircle cx='520' cy='286' r='12'/%3E%3Ccircle cx='733' cy='151' r='9'/%3E%3Ccircle cx='391' cy='442' r='8'/%3E%3C/g%3E%3C/svg%3E");
+      background-size: cover;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 18px;
+    }
+
+    .login-art h2 {
+      font-size: clamp(2rem, 5vw, 4rem);
+      line-height: 1.02;
+      letter-spacing: 0;
+      margin: 0;
+      max-width: 680px;
+    }
+
+    .login-art p {
+      margin: 0;
+      max-width: 620px;
+      font-size: 1.05rem;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .login-form {
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 3px;
+      background: #f3f6f5;
+    }
+
+    .tabs button {
+      background: transparent;
+      color: var(--muted);
+      min-height: 38px;
+    }
+
+    .tabs button.active {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 2px 12px rgba(17, 24, 39, 0.08);
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      font-weight: 700;
+      color: #24342c;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      background: #fff;
+      outline: none;
+    }
+
+    input {
+      min-height: 44px;
+      padding: 10px 12px;
+    }
+
+    textarea {
+      resize: vertical;
+      padding: 12px;
+      line-height: 1.5;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+    }
+
+    .notice {
+      border-radius: 8px;
+      padding: 12px 14px;
+      background: var(--panel-soft);
+      color: #264137;
+      line-height: 1.45;
+      font-size: 0.94rem;
+    }
+
+    .workspace {
+      display: none;
+      gap: 16px;
+    }
+
+    .workspace.active {
+      display: grid;
+    }
+
+    .topgrid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+      gap: 16px;
+    }
+
+    .section {
+      padding: 18px;
+    }
+
+    .section h2,
+    .section h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    .section h2 {
+      font-size: 1.1rem;
+    }
+
+    .section h3 {
+      font-size: 0.98rem;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      min-height: 24px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #94a3b8;
+      flex: 0 0 auto;
+    }
+
+    .dot.live {
+      background: var(--danger);
+      box-shadow: 0 0 0 6px rgba(185, 28, 28, 0.12);
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfc;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(180px, 1fr));
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .category {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .category h3 {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: #f8faf9;
+    }
+
+    .category textarea {
+      border: 0;
+      border-radius: 0 0 8px 8px;
+      min-height: 140px;
+      flex: 1;
+      box-shadow: none;
+    }
+
+    .history {
+      display: grid;
+      gap: 10px;
+      max-height: 380px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .record {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+      display: grid;
+      gap: 8px;
+    }
+
+    .record strong {
+      font-size: 0.96rem;
+    }
+
+    .record p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .record-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 860px) {
+      .login,
+      .topgrid {
+        grid-template-columns: 1fr;
+      }
+
+      .login-art {
+        min-height: 300px;
+      }
+
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .userbar {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .shell {
+        width: min(100vw - 20px, 1180px);
+        padding-top: 16px;
+      }
+
+      .login-form,
+      .section {
+        padding: 14px;
+      }
+
+      .controls,
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="brand">
+        <h1>MediScribe AI</h1>
+        <span>Client-side speech capture and clinical note organiser</span>
+      </div>
+      <div id="userBar" class="userbar hidden">
+        <span id="activeUser" class="pill"></span>
+        <button id="switchUserBtn" class="ghost" type="button">Switch user</button>
+      </div>
+    </header>
+
+    <section id="loginPanel" class="panel login">
+      <div class="login-art">
+        <h2>Record speech into structured patient notes.</h2>
+        <p>Accounts, transcripts, summaries, and timestamps are stored locally in this browser. No server is required for normal use.</p>
+      </div>
+      <form id="accountForm" class="login-form">
+        <div class="tabs" role="tablist" aria-label="Account mode">
+          <button id="existingTab" class="active" type="button">Existing user</button>
+          <button id="newTab" type="button">New user</button>
+        </div>
+
+        <div class="notice" id="accountNotice">Enter your name and user ID to continue.</div>
+
+        <label>
+          Name
+          <input id="nameInput" autocomplete="name" required placeholder="e.g. Dr Tan">
+        </label>
+        <label>
+          User ID
+          <input id="userIdInput" autocomplete="username" required placeholder="e.g. MED-001">
+        </label>
+        <label id="roleWrap" class="hidden">
+          Role or clinic
+          <input id="roleInput" placeholder="Optional">
+        </label>
+        <button id="accountSubmit" type="submit">Continue</button>
+      </form>
+    </section>
+
+    <section id="workspace" class="workspace">
+      <div class="topgrid">
+        <section class="panel section">
+          <div class="section-head">
+            <h2>Transcript</h2>
+            <span id="supportStatus" class="small"></span>
+          </div>
+          <div class="status">
+            <span id="recordDot" class="dot"></span>
+            <span id="recordStatus">Ready to record</span>
+          </div>
+          <div class="controls">
+            <button id="recordBtn" type="button">Start recording</button>
+            <button id="stopBtn" class="ghost" type="button" disabled>Stop</button>
+            <button id="clearBtn" class="ghost" type="button">Clear draft</button>
+          </div>
+          <label>
+            Editable transcript
+            <textarea id="transcriptInput" rows="12" placeholder="Recorded speech appears here. You can also type or paste notes manually."></textarea>
+          </label>
+          <div class="meta-grid">
+            <div class="metric">
+              <b>Created</b>
+              <span id="createdStamp">Not started</span>
+            </div>
+            <div class="metric">
+              <b>Last updated</b>
+              <span id="updatedStamp">No edits yet</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel section">
+          <div class="section-head">
+            <h2>Saved Notes</h2>
+            <button id="exportBtn" class="ghost" type="button">Export JSON</button>
+          </div>
+          <div id="history" class="history"></div>
+        </section>
+      </div>
+
+      <section class="panel section">
+        <div class="section-head">
+          <div>
+            <h2>Structured Summary</h2>
+            <span class="small">Review and edit each category before saving.</span>
+          </div>
+          <button id="categoriseBtn" class="ghost" type="button">Refresh categories</button>
+        </div>
+        <div class="summary-grid">
+          <article class="category">
+            <h3>Family History</h3>
+            <textarea id="familyHistory" data-category="familyHistory"></textarea>
+          </article>
+          <article class="category">
+            <h3>Allergies</h3>
+            <textarea id="allergies" data-category="allergies"></textarea>
+          </article>
+          <article class="category">
+            <h3>Timeframe</h3>
+            <textarea id="timeframe" data-category="timeframe"></textarea>
+          </article>
+          <article class="category">
+            <h3>Main Complaints</h3>
+            <textarea id="mainComplaints" data-category="mainComplaints"></textarea>
+          </article>
+          <article class="category">
+            <h3>Other Keynotes</h3>
+            <textarea id="otherKeynotes" data-category="otherKeynotes"></textarea>
+          </article>
+        </div>
+        <div class="actions" style="margin-top: 14px;">
+          <button id="saveBtn" type="button">Save note</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const accountKey = "mediscribe.accounts";
+    const noteKey = "mediscribe.notes";
+    const els = {
+      loginPanel: document.getElementById("loginPanel"),
+      workspace: document.getElementById("workspace"),
+      userBar: document.getElementById("userBar"),
+      activeUser: document.getElementById("activeUser"),
+      switchUserBtn: document.getElementById("switchUserBtn"),
+      accountForm: document.getElementById("accountForm"),
+      existingTab: document.getElementById("existingTab"),
+      newTab: document.getElementById("newTab"),
+      accountNotice: document.getElementById("accountNotice"),
+      nameInput: document.getElementById("nameInput"),
+      userIdInput: document.getElementById("userIdInput"),
+      roleWrap: document.getElementById("roleWrap"),
+      roleInput: document.getElementById("roleInput"),
+      accountSubmit: document.getElementById("accountSubmit"),
+      supportStatus: document.getElementById("supportStatus"),
+      recordBtn: document.getElementById("recordBtn"),
+      stopBtn: document.getElementById("stopBtn"),
+      clearBtn: document.getElementById("clearBtn"),
+      recordDot: document.getElementById("recordDot"),
+      recordStatus: document.getElementById("recordStatus"),
+      transcriptInput: document.getElementById("transcriptInput"),
+      createdStamp: document.getElementById("createdStamp"),
+      updatedStamp: document.getElementById("updatedStamp"),
+      categoriseBtn: document.getElementById("categoriseBtn"),
+      saveBtn: document.getElementById("saveBtn"),
+      exportBtn: document.getElementById("exportBtn"),
+      history: document.getElementById("history"),
+      familyHistory: document.getElementById("familyHistory"),
+      allergies: document.getElementById("allergies"),
+      timeframe: document.getElementById("timeframe"),
+      mainComplaints: document.getElementById("mainComplaints"),
+      otherKeynotes: document.getElementById("otherKeynotes")
+    };
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let accountMode = "existing";
+    let activeUser = null;
+    let recognition = null;
+    let isRecording = false;
+    let draftCreatedAt = null;
+    let lastTranscriptForCategories = "";
+
+    const categoryFields = [
+      ["familyHistory", els.familyHistory],
+      ["allergies", els.allergies],
+      ["timeframe", els.timeframe],
+      ["mainComplaints", els.mainComplaints],
+      ["otherKeynotes", els.otherKeynotes]
+    ];
+
+    function readStore(key, fallback) {
+      try {
+        return JSON.parse(localStorage.getItem(key)) || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    function writeStore(key, value) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function normaliseUserId(id) {
+      return id.trim().replace(/\s+/g, "-").toUpperCase();
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "";
+      return new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(new Date(value));
+    }
+
+    function setMode(mode) {
+      accountMode = mode;
+      els.existingTab.classList.toggle("active", mode === "existing");
+      els.newTab.classList.toggle("active", mode === "new");
+      els.roleWrap.classList.toggle("hidden", mode !== "new");
+      els.accountSubmit.textContent = mode === "new" ? "Create account" : "Continue";
+      els.accountNotice.textContent = mode === "new"
+        ? "Create a local account for this browser before recording."
+        : "Enter your name and user ID to continue.";
+    }
+
+    function showWorkspace(user) {
+      activeUser = user;
+      sessionStorage.setItem("mediscribe.activeUserId", user.id);
+      els.loginPanel.classList.add("hidden");
+      els.workspace.classList.add("active");
+      els.userBar.classList.remove("hidden");
+      els.activeUser.textContent = `${user.name} | ${user.id}`;
+      renderHistory();
+    }
+
+    function showLogin() {
+      activeUser = null;
+      sessionStorage.removeItem("mediscribe.activeUserId");
+      els.loginPanel.classList.remove("hidden");
+      els.workspace.classList.remove("active");
+      els.userBar.classList.add("hidden");
+    }
+
+    function handleAccount(event) {
+      event.preventDefault();
+      const name = els.nameInput.value.trim();
+      const id = normaliseUserId(els.userIdInput.value);
+      const role = els.roleInput.value.trim();
+      if (!name || !id) {
+        els.accountNotice.textContent = "Name and user ID are required.";
+        return;
+      }
+
+      const accounts = readStore(accountKey, {});
+      if (accountMode === "new") {
+        if (accounts[id]) {
+          els.accountNotice.textContent = "That user ID already exists. Use Existing user or choose another ID.";
+          return;
+        }
+        accounts[id] = { id, name, role, createdAt: new Date().toISOString() };
+        writeStore(accountKey, accounts);
+        showWorkspace(accounts[id]);
+        return;
+      }
+
+      if (!accounts[id]) {
+        els.accountNotice.textContent = "No account found for that user ID. Select New user to create one.";
+        return;
+      }
+
+      if (accounts[id].name.toLowerCase() !== name.toLowerCase()) {
+        els.accountNotice.textContent = "The name does not match this user ID.";
+        return;
+      }
+      showWorkspace(accounts[id]);
+    }
+
+    function ensureDraftTime() {
+      if (!draftCreatedAt) {
+        draftCreatedAt = new Date().toISOString();
+        els.createdStamp.textContent = formatDateTime(draftCreatedAt);
+      }
+      els.updatedStamp.textContent = formatDateTime(new Date().toISOString());
+    }
+
+    function setupSpeech() {
+      if (!SpeechRecognition) {
+        els.supportStatus.textContent = "Speech recognition is unavailable in this browser. Manual entry still works.";
+        els.recordBtn.disabled = true;
+        return;
+      }
+
+      els.supportStatus.textContent = "Speech recognition available";
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || "en-US";
+
+      recognition.onstart = () => {
+        isRecording = true;
+        els.recordDot.classList.add("live");
+        els.recordStatus.textContent = "Recording";
+        els.recordBtn.disabled = true;
+        els.stopBtn.disabled = false;
+        ensureDraftTime();
+      };
+
+      recognition.onend = () => {
+        isRecording = false;
+        els.recordDot.classList.remove("live");
+        els.recordStatus.textContent = "Recording stopped";
+        els.recordBtn.disabled = false;
+        els.stopBtn.disabled = true;
+        categoriseTranscript();
+      };
+
+      recognition.onerror = (event) => {
+        els.recordStatus.textContent = `Speech recognition error: ${event.error}`;
+      };
+
+      recognition.onresult = (event) => {
+        let finalText = "";
+        let interimText = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const text = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalText += text.trim() + " ";
+          } else {
+            interimText += text;
+          }
+        }
+
+        if (finalText) {
+          const spacer = els.transcriptInput.value.trim() ? " " : "";
+          els.transcriptInput.value = `${els.transcriptInput.value.trim()}${spacer}${finalText.trim()}`;
+          ensureDraftTime();
+          categoriseTranscript();
+        }
+
+        els.recordStatus.textContent = interimText ? `Listening: ${interimText.trim()}` : "Recording";
+      };
+    }
+
+    function splitSentences(text) {
+      const matches = text
+        .replace(/\s+/g, " ")
+        .match(/[^.!?\n-]+[.!?]?/g);
+      return matches ? matches.map((part) => part.trim()).filter(Boolean) : [];
+    }
+
+    function uniqueLines(items) {
+      return [...new Set(items.map((item) => item.trim()).filter(Boolean))].join("\n");
+    }
+
+    function categoriseTranscript() {
+      const text = els.transcriptInput.value.trim();
+      if (!text || text === lastTranscriptForCategories) return;
+      lastTranscriptForCategories = text;
+
+      const buckets = {
+        familyHistory: [],
+        allergies: [],
+        timeframe: [],
+        mainComplaints: [],
+        otherKeynotes: []
+      };
+
+      const rules = [
+        ["familyHistory", /\b(family history|mother|father|parent|sibling|brother|sister|grandparent|runs in the family|hereditary|genetic)\b/i],
+        ["allergies", /\b(allergy|allergic|allergies|reaction to|rash after|anaphylaxis|penicillin|latex|shellfish|peanut|drug allergy)\b/i],
+        ["timeframe", /\b(today|yesterday|last night|this morning|for \d+|since|started|began|onset|duration|week|weeks|month|months|day|days|hour|hours|year|years|acute|chronic)\b/i],
+        ["mainComplaints", /\b(complain|complaint|pain|fever|cough|shortness of breath|breathless|dizzy|nausea|vomit|diarrhea|headache|chest|abdominal|rash|swelling|bleeding|fatigue|weakness)\b/i]
+      ];
+
+      for (const sentence of splitSentences(text)) {
+        let matched = false;
+        for (const [bucket, regex] of rules) {
+          if (regex.test(sentence)) {
+            buckets[bucket].push(sentence);
+            matched = true;
+          }
+        }
+        if (!matched) buckets.otherKeynotes.push(sentence);
+      }
+
+      for (const [key, field] of categoryFields) {
+        if (!field.value.trim()) {
+          field.value = uniqueLines(buckets[key]) || "Not specified";
+        }
+      }
+    }
+
+    function clearDraft() {
+      if (isRecording && recognition) recognition.stop();
+      draftCreatedAt = null;
+      lastTranscriptForCategories = "";
+      els.transcriptInput.value = "";
+      els.createdStamp.textContent = "Not started";
+      els.updatedStamp.textContent = "No edits yet";
+      categoryFields.forEach(([, field]) => {
+        field.value = "";
+      });
+      els.recordStatus.textContent = "Ready to record";
+    }
+
+    function buildNote() {
+      return {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+        userId: activeUser.id,
+        userName: activeUser.name,
+        createdAt: draftCreatedAt || new Date().toISOString(),
+        savedAt: new Date().toISOString(),
+        transcript: els.transcriptInput.value.trim(),
+        summary: Object.fromEntries(categoryFields.map(([key, field]) => [key, field.value.trim()]))
+      };
+    }
+
+    function saveNote() {
+      if (!activeUser) return;
+      categoriseTranscript();
+      const note = buildNote();
+      if (!note.transcript) {
+        els.recordStatus.textContent = "Add a transcript before saving.";
+        return;
+      }
+
+      const notes = readStore(noteKey, []);
+      notes.unshift(note);
+      writeStore(noteKey, notes);
+      renderHistory();
+      clearDraft();
+      els.recordStatus.textContent = "Note saved";
+    }
+
+    function renderHistory() {
+      if (!activeUser) return;
+      const notes = readStore(noteKey, []).filter((note) => note.userId === activeUser.id);
+      if (!notes.length) {
+        els.history.innerHTML = '<div class="notice">No saved notes for this user yet.</div>';
+        return;
+      }
+
+      els.history.innerHTML = notes.map((note) => {
+        const complaint = note.summary.mainComplaints || "No main complaint recorded";
+        return `
+          <article class="record">
+            <strong>${formatDateTime(note.savedAt)}</strong>
+            <p>${escapeHtml(complaint).replace(/\n/g, "<br>")}</p>
+            <div class="record-actions">
+              <button class="ghost" type="button" data-load-note="${note.id}">Load note</button>
+              <button class="danger" type="button" data-delete-note="${note.id}">Delete</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function loadNote(id) {
+      const note = readStore(noteKey, []).find((item) => item.id === id);
+      if (!note) return;
+      draftCreatedAt = note.createdAt;
+      lastTranscriptForCategories = note.transcript;
+      els.transcriptInput.value = note.transcript;
+      els.createdStamp.textContent = formatDateTime(note.createdAt);
+      els.updatedStamp.textContent = formatDateTime(note.savedAt);
+      categoryFields.forEach(([key, field]) => {
+        field.value = note.summary[key] || "";
+      });
+      els.recordStatus.textContent = "Loaded saved note for review";
+    }
+
+    function deleteNote(id) {
+      if (!activeUser) return;
+      const notes = readStore(noteKey, []);
+      const note = notes.find((item) => item.id === id && item.userId === activeUser.id);
+      if (!note) return;
+
+      const confirmed = window.confirm(`Delete the note saved on ${formatDateTime(note.savedAt)}?`);
+      if (!confirmed) return;
+
+      writeStore(noteKey, notes.filter((item) => !(item.id === id && item.userId === activeUser.id)));
+      renderHistory();
+      els.recordStatus.textContent = "Saved note deleted";
+    }
+
+    function exportNotes() {
+      if (!activeUser) return;
+      const notes = readStore(noteKey, []).filter((note) => note.userId === activeUser.id);
+      const payload = JSON.stringify({ user: activeUser, exportedAt: new Date().toISOString(), notes }, null, 2);
+      const blob = new Blob([payload], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `mediscribe-${activeUser.id}-${Date.now()}.json`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function escapeHtml(value) {
+      return value.replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+
+    els.existingTab.addEventListener("click", () => setMode("existing"));
+    els.newTab.addEventListener("click", () => setMode("new"));
+    els.accountForm.addEventListener("submit", handleAccount);
+    els.switchUserBtn.addEventListener("click", () => {
+      clearDraft();
+      showLogin();
+    });
+    els.recordBtn.addEventListener("click", () => {
+      if (recognition && !isRecording) recognition.start();
+    });
+    els.stopBtn.addEventListener("click", () => {
+      if (recognition && isRecording) recognition.stop();
+    });
+    els.clearBtn.addEventListener("click", clearDraft);
+    els.categoriseBtn.addEventListener("click", () => {
+      lastTranscriptForCategories = "";
+      categoryFields.forEach(([, field]) => {
+        field.value = "";
+      });
+      categoriseTranscript();
+    });
+    els.saveBtn.addEventListener("click", saveNote);
+    els.exportBtn.addEventListener("click", exportNotes);
+    els.transcriptInput.addEventListener("input", () => {
+      ensureDraftTime();
+      window.clearTimeout(els.transcriptInput._timer);
+      els.transcriptInput._timer = window.setTimeout(categoriseTranscript, 400);
+    });
+    els.history.addEventListener("click", (event) => {
+      const loadButton = event.target.closest("[data-load-note]");
+      if (loadButton) {
+        loadNote(loadButton.dataset.loadNote);
+        return;
+      }
+
+      const deleteButton = event.target.closest("[data-delete-note]");
+      if (deleteButton) deleteNote(deleteButton.dataset.deleteNote);
+    });
+
+    setupSpeech();
+    setMode("existing");
+
+    const savedUserId = sessionStorage.getItem("mediscribe.activeUserId");
+    const savedUser = savedUserId ? readStore(accountKey, {})[savedUserId] : null;
+    if (savedUser) showWorkspace(savedUser);
+  </script>
+</body>
+</html>
