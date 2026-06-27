@@ -596,7 +596,6 @@
     </section>
   </main>
 
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.1/dist/xlsx.full.min.js"></script>
   <script>
     const accountKey = "mediscribe.accounts";
@@ -650,7 +649,6 @@
     let isRecording = false;
     let draftCreatedAt = null;
     let lastTranscriptForCategories = "";
-    let msalInstance = null;
     let oneDriveAccessToken = null;
     let oneDriveAccount = null;
 
@@ -988,64 +986,48 @@
       els.oneDriveDot.classList.toggle("live", connected);
     }
 
-    function getMsalLibrary() {
-      const candidates = [
-        window.msal,
-        window.msalBrowser,
-        window.MSAL,
-        window.PublicClientApplication,
-        window.msal?.PublicClientApplication,
-        window.msalBrowser?.PublicClientApplication
-      ];
-      return candidates.find((candidate) => candidate && typeof candidate === "function") || null;
-    }
-
-    function ensureOneDriveClient() {
-      if (msalInstance) return msalInstance;
-      const MsalLibrary = getMsalLibrary();
-      if (!MsalLibrary) {
-        setOneDriveStatus("Microsoft auth library unavailable", false);
-        els.oneDriveNotice.textContent = "The Microsoft auth script did not load. Please refresh the page and try again.";
-        return null;
-      }
-
-      const redirectUri = window.location.origin === "null"
-        ? "http://localhost"
-        : `${window.location.origin}${window.location.pathname}`;
-      msalInstance = new MsalLibrary({
-        auth: {
-          clientId: "04b07795-8ddb-461a-bbee-02f9e1bf7bfe",
-          authority: "https://login.microsoftonline.com/consumers",
-          redirectUri
-        },
-        cache: {
-          cacheLocation: "sessionStorage",
-          storeAuthStateInCookie: false
-        }
-      });
-      return msalInstance;
-    }
-
     async function connectOneDrive() {
       try {
-        const instance = ensureOneDriveClient();
-        if (!instance) return null;
-        const accounts = instance.getAllAccounts();
-        const request = { scopes: ["User.Read", "Files.ReadWrite"] };
-        let result;
+        const clientId = "04b07795-8ddb-461a-bbee-02f9e1bf7bfe";
+        const redirectUri = window.location.origin === "null"
+          ? "http://localhost"
+          : `${window.location.origin}${window.location.pathname}`;
+        const scope = "Files.ReadWrite offline_access";
+        const authUrl = `https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&response_mode=fragment&scope=${encodeURIComponent(scope)}&state=mediscribe-onedrive`;
 
-        if (accounts.length) {
-          result = await instance.acquireTokenSilent({ ...request, account: accounts[0] });
-        } else {
-          result = await instance.loginPopup(request);
-          result = await instance.acquireTokenSilent({ ...request, account: result.account });
+        const popup = window.open(authUrl, "Microsoft Sign In", "width=600,height=700");
+        if (!popup) {
+          throw new Error("Popup blocked. Please allow popups for this site.");
         }
 
-        oneDriveAccessToken = result.accessToken;
-        oneDriveAccount = result.account;
-        setOneDriveStatus(`Connected to ${result.account.username}`, true);
-        els.oneDriveNotice.textContent = `Signed in as ${result.account.username}. Your workbook will be saved as ${oneDriveFileName}.`;
-        return result;
+        const tokenResult = await new Promise((resolve, reject) => {
+          const handleMessage = (event) => {
+            if (event.origin !== window.location.origin) return;
+            if (event.data && event.data.type === "onedrive-token") {
+              window.removeEventListener("message", handleMessage);
+              resolve(event.data.token);
+            }
+          };
+
+          window.addEventListener("message", handleMessage);
+          const timer = window.setInterval(() => {
+            try {
+              if (popup.closed) {
+                window.clearInterval(timer);
+                window.removeEventListener("message", handleMessage);
+                reject(new Error("Sign-in cancelled."));
+              }
+            } catch {
+              // ignore popup errors
+            }
+          }, 500);
+        });
+
+        oneDriveAccessToken = tokenResult;
+        oneDriveAccount = { username: "Microsoft account" };
+        setOneDriveStatus("Connected to OneDrive", true);
+        els.oneDriveNotice.textContent = `Signed in successfully. Your workbook will be saved as ${oneDriveFileName}.`;
+        return tokenResult;
       } catch (error) {
         oneDriveAccessToken = null;
         oneDriveAccount = null;
