@@ -560,11 +560,31 @@
       <section class="panel section">
         <div class="section-head">
           <div>
-            <h2>Microsoft Graph Sync</h2>
-            <span class="small">Connect to Microsoft 365 to save notes into a SharePoint List.</span>
+            <h2>Cloud Sync</h2>
+            <span class="small">Supabase is the primary sync target. SharePoint can keep a backup copy.</span>
           </div>
-          <span id="graphStatus" class="pill">Not configured</span>
+          <span id="syncStatus" class="pill">Not configured</span>
         </div>
+        <h3 style="margin: 0 0 10px;">Supabase Primary Sync</h3>
+        <div class="sync-grid">
+          <label>
+            Supabase Project URL
+            <input id="supabaseUrlInput" placeholder="https://your-project.supabase.co">
+          </label>
+          <label>
+            Supabase Anon Key
+            <input id="supabaseAnonKeyInput" placeholder="Public anon key">
+          </label>
+          <label>
+            Table Name
+            <input id="supabaseTableInput" placeholder="mediscribe_notes">
+          </label>
+        </div>
+        <div class="sync-actions" style="margin-top: 14px;">
+          <button id="saveSupabaseConfigBtn" class="ghost" type="button">Save Supabase config</button>
+        </div>
+
+        <h3 style="margin: 18px 0 10px;">SharePoint Backup Sync</h3>
         <div class="sync-grid">
           <label>
             Tenant ID
@@ -589,7 +609,7 @@
           <button id="microsoftSignOutBtn" class="ghost" type="button">Sign out</button>
           <button id="retrySyncBtn" class="ghost" type="button">Retry unsynced notes</button>
         </div>
-        <div id="syncMessage" class="notice" style="margin-top: 12px;">Notes save locally first. When Microsoft sync is configured, new notes are also sent to SharePoint.</div>
+        <div id="syncMessage" class="notice" style="margin-top: 12px;">Notes save locally first. Supabase is attempted first; SharePoint is attempted as backup when configured.</div>
       </section>
 
       <section class="panel section">
@@ -632,6 +652,7 @@
   <script>
     const accountKey = "mediscribe.accounts";
     const noteKey = "mediscribe.notes";
+    const supabaseConfigKey = "mediscribe.supabaseConfig";
     const graphConfigKey = "mediscribe.graphConfig";
     const msalScriptUrls = [
       "https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js",
@@ -665,7 +686,11 @@
       categoriseBtn: document.getElementById("categoriseBtn"),
       saveBtn: document.getElementById("saveBtn"),
       exportBtn: document.getElementById("exportBtn"),
-      graphStatus: document.getElementById("graphStatus"),
+      syncStatus: document.getElementById("syncStatus"),
+      supabaseUrlInput: document.getElementById("supabaseUrlInput"),
+      supabaseAnonKeyInput: document.getElementById("supabaseAnonKeyInput"),
+      supabaseTableInput: document.getElementById("supabaseTableInput"),
+      saveSupabaseConfigBtn: document.getElementById("saveSupabaseConfigBtn"),
       tenantIdInput: document.getElementById("tenantIdInput"),
       clientIdInput: document.getElementById("clientIdInput"),
       siteIdInput: document.getElementById("siteIdInput"),
@@ -722,6 +747,18 @@
       });
     }
 
+    function readSupabaseConfig() {
+      return readStore(supabaseConfigKey, {
+        url: "",
+        anonKey: "",
+        table: "mediscribe_notes"
+      });
+    }
+
+    function isSupabaseConfigured(config = readSupabaseConfig()) {
+      return Boolean(config.url && config.anonKey && config.table);
+    }
+
     function isGraphConfigured(config = readGraphConfig()) {
       return Boolean(config.tenantId && config.clientId && config.siteId && config.listId);
     }
@@ -767,6 +804,11 @@
     }
 
     function hydrateGraphConfig() {
+      const supabaseConfig = readSupabaseConfig();
+      els.supabaseUrlInput.value = supabaseConfig.url || "";
+      els.supabaseAnonKeyInput.value = supabaseConfig.anonKey || "";
+      els.supabaseTableInput.value = supabaseConfig.table || "mediscribe_notes";
+
       const config = readGraphConfig();
       els.tenantIdInput.value = config.tenantId || "";
       els.clientIdInput.value = config.clientId || "";
@@ -774,6 +816,19 @@
       els.listIdInput.value = config.listId || "";
       refreshGraphStatus();
       ensureMsalLoaded().then(() => refreshGraphStatus());
+    }
+
+    function saveSupabaseConfig() {
+      const config = {
+        url: els.supabaseUrlInput.value.trim().replace(/\/+$/, ""),
+        anonKey: els.supabaseAnonKeyInput.value.trim(),
+        table: els.supabaseTableInput.value.trim() || "mediscribe_notes"
+      };
+      writeStore(supabaseConfigKey, config);
+      refreshGraphStatus();
+      updateSyncMessage(isSupabaseConfigured(config)
+        ? "Supabase config saved. New notes will sync to Supabase first."
+        : "Supabase config saved, but Project URL, Anon Key, and Table Name are required for primary sync.");
     }
 
     function saveGraphConfig() {
@@ -788,8 +843,8 @@
       initialiseMsal();
       refreshGraphStatus();
       updateSyncMessage(isGraphConfigured(config)
-        ? "Graph config saved. Sign in with Microsoft before syncing notes."
-        : "Graph config saved, but all four fields are required before sync can run.");
+        ? "SharePoint backup config saved. Sign in with Microsoft to enable backup sync."
+        : "SharePoint backup config saved, but all four fields are required before backup sync can run.");
     }
 
     function initialiseMsal() {
@@ -816,18 +871,25 @@
     }
 
     function refreshGraphStatus() {
-      const configured = isGraphConfigured();
+      const supabaseConfigured = isSupabaseConfigured();
+      const graphConfigured = isGraphConfigured();
       const app = initialiseMsal();
       const account = app ? app.getAllAccounts()[0] : null;
 
-      if (!configured) {
-        els.graphStatus.textContent = "Not configured";
+      if (!supabaseConfigured && !graphConfigured) {
+        els.syncStatus.textContent = "Not configured";
+      } else if (supabaseConfigured && graphConfigured && account) {
+        els.syncStatus.textContent = "Supabase primary + SharePoint signed in";
+      } else if (supabaseConfigured && graphConfigured) {
+        els.syncStatus.textContent = "Supabase primary + SharePoint configured";
+      } else if (supabaseConfigured) {
+        els.syncStatus.textContent = "Supabase primary configured";
       } else if (!window.msal) {
-        els.graphStatus.textContent = "Sign-in library unavailable";
+        els.syncStatus.textContent = "SharePoint library unavailable";
       } else if (account) {
-        els.graphStatus.textContent = `Signed in: ${account.username}`;
+        els.syncStatus.textContent = `SharePoint signed in: ${account.username}`;
       } else {
-        els.graphStatus.textContent = "Configured";
+        els.syncStatus.textContent = "SharePoint backup configured";
       }
     }
 
@@ -1048,6 +1110,10 @@
         transcript: els.transcriptInput.value.trim(),
         syncStatus: "pending",
         syncError: "",
+        supabaseSyncStatus: "pending",
+        supabaseSyncError: "",
+        sharePointSyncStatus: "pending",
+        sharePointSyncError: "",
         summary: Object.fromEntries(categoryFields.map(([key, field]) => [key, field.value.trim()]))
       };
     }
@@ -1080,15 +1146,22 @@
 
       els.history.innerHTML = notes.map((note) => {
         const complaint = note.summary.mainComplaints || "No main complaint recorded";
-        const syncLabel = note.syncStatus === "synced"
-          ? "Synced to SharePoint"
-          : note.syncStatus === "failed"
-            ? `Sync failed: ${note.syncError || "Unknown error"}`
-            : "Local only";
+        const supabaseStatus = note.supabaseSyncStatus || note.syncStatus || "pending";
+        const sharePointStatus = note.sharePointSyncStatus || "pending";
+        const supabaseLabel = supabaseStatus === "synced"
+          ? "Supabase: synced"
+          : supabaseStatus === "failed"
+            ? `Supabase: failed (${note.supabaseSyncError || note.syncError || "Unknown error"})`
+            : "Supabase: pending";
+        const sharePointLabel = sharePointStatus === "synced"
+          ? "SharePoint backup: synced"
+          : sharePointStatus === "failed"
+            ? `SharePoint backup: failed (${note.sharePointSyncError || "Unknown error"})`
+            : "SharePoint backup: pending";
         return `
           <article class="record">
             <strong>${formatDateTime(note.savedAt)}</strong>
-            <span class="small">${escapeHtml(syncLabel)}</span>
+            <span class="small">${escapeHtml(supabaseLabel)} | ${escapeHtml(sharePointLabel)}</span>
             <p>${escapeHtml(complaint).replace(/\n/g, "<br>")}</p>
             <div class="record-actions">
               <button class="ghost" type="button" data-load-note="${note.id}">Load note</button>
@@ -1230,39 +1303,118 @@
       return response.json();
     }
 
+    async function syncNoteToSupabase(note) {
+      const config = readSupabaseConfig();
+      const response = await fetch(`${config.url}/rest/v1/${encodeURIComponent(config.table)}?on_conflict=client_note_id`, {
+        method: "POST",
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${config.anonKey}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates,return=representation"
+        },
+        body: JSON.stringify({
+          client_note_id: note.id,
+          user_id: note.userId,
+          user_name: note.userName,
+          transcript: note.transcript,
+          family_history: note.summary.familyHistory,
+          allergies: note.summary.allergies,
+          timeframe: note.summary.timeframe,
+          main_complaints: note.summary.mainComplaints,
+          other_keynotes: note.summary.otherKeynotes,
+          created_at: note.createdAt,
+          saved_at: note.savedAt
+        })
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Supabase ${response.status}: ${detail || response.statusText}`);
+      }
+
+      return response.json();
+    }
+
     async function syncSingleNote(noteId) {
       const note = readStore(noteKey, []).find((item) => item.id === noteId);
       if (!note) return false;
-      if (note.syncStatus === "synced") return true;
-      if (!isGraphConfigured()) {
-        updateStoredNote(noteId, { syncStatus: "pending", syncError: "" });
-        updateSyncMessage("Note saved locally. Complete Graph config to sync to SharePoint.");
-        return false;
+      const hasSupabase = isSupabaseConfigured();
+      const hasSharePoint = isGraphConfigured();
+      let supabaseSynced = note.supabaseSyncStatus === "synced" || note.syncStatus === "synced";
+
+      if (!hasSupabase) {
+        updateStoredNote(noteId, {
+          supabaseSyncStatus: "pending",
+          supabaseSyncError: "",
+          syncStatus: "pending",
+          syncError: ""
+        });
+        updateSyncMessage("Note saved locally. Complete Supabase config for primary sync.");
+      } else if (!supabaseSynced) {
+        try {
+          const result = await syncNoteToSupabase(note);
+          updateStoredNote(noteId, {
+            supabaseSyncStatus: "synced",
+            supabaseSyncError: "",
+            syncStatus: "synced",
+            syncError: "",
+            supabaseRow: Array.isArray(result) ? result[0] : result
+          });
+          supabaseSynced = true;
+          updateSyncMessage("Note synced to Supabase.");
+        } catch (error) {
+          updateStoredNote(noteId, {
+            supabaseSyncStatus: "failed",
+            supabaseSyncError: error.message,
+            syncStatus: "failed",
+            syncError: error.message
+          });
+          updateSyncMessage(`Supabase sync failed: ${error.message}`);
+        }
       }
 
-      try {
-        const result = await syncNoteToSharePoint(note);
+      if (hasSharePoint && note.sharePointSyncStatus !== "synced") {
+        try {
+          const latestNote = readStore(noteKey, []).find((item) => item.id === noteId) || note;
+          const result = await syncNoteToSharePoint(latestNote);
+          updateStoredNote(noteId, {
+            sharePointSyncStatus: "synced",
+            sharePointSyncError: "",
+            sharePointItemId: result.id || ""
+          });
+          updateSyncMessage(supabaseSynced
+            ? "Note synced to Supabase and SharePoint backup."
+            : "Supabase sync failed; note synced to SharePoint backup.");
+        } catch (error) {
+          updateStoredNote(noteId, {
+            sharePointSyncStatus: "failed",
+            sharePointSyncError: error.message
+          });
+          if (supabaseSynced) {
+            updateSyncMessage(`Supabase synced. SharePoint backup failed: ${error.message}`);
+          }
+        }
+      } else if (!hasSharePoint) {
         updateStoredNote(noteId, {
-          syncStatus: "synced",
-          syncError: "",
-          sharePointItemId: result.id || ""
+          sharePointSyncStatus: "pending",
+          sharePointSyncError: ""
         });
-        updateSyncMessage("Note synced to SharePoint.");
-        return true;
-      } catch (error) {
-        updateStoredNote(noteId, {
-          syncStatus: "failed",
-          syncError: error.message
-        });
-        updateSyncMessage(`SharePoint sync failed: ${error.message}`);
-        return false;
       }
+
+      return supabaseSynced;
     }
 
     async function retryUnsyncedNotes() {
       if (!activeUser) return;
+      const hasSharePoint = isGraphConfigured();
       const unsynced = readStore(noteKey, [])
-        .filter((note) => note.userId === activeUser.id && note.syncStatus !== "synced")
+        .filter((note) => {
+          if (note.userId !== activeUser.id) return false;
+          const supabaseDone = note.supabaseSyncStatus === "synced" || note.syncStatus === "synced";
+          const sharePointDone = !hasSharePoint || note.sharePointSyncStatus === "synced";
+          return !supabaseDone || !sharePointDone;
+        })
         .map((note) => note.id);
 
       if (!unsynced.length) {
@@ -1321,6 +1473,7 @@
     });
     els.saveBtn.addEventListener("click", saveNote);
     els.exportBtn.addEventListener("click", exportNotes);
+    els.saveSupabaseConfigBtn.addEventListener("click", saveSupabaseConfig);
     els.saveGraphConfigBtn.addEventListener("click", saveGraphConfig);
     els.microsoftSignInBtn.addEventListener("click", () => {
       signInMicrosoft().catch((error) => updateSyncMessage(`Microsoft sign-in failed: ${error.message}`));
