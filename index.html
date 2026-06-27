@@ -988,12 +988,28 @@
       els.oneDriveDot.classList.toggle("live", connected);
     }
 
+    function getMsalLibrary() {
+      const candidates = [
+        window.msal,
+        window.msalBrowser,
+        window.MSAL
+      ];
+      return candidates.find((candidate) => candidate && candidate.PublicClientApplication) || null;
+    }
+
     function ensureOneDriveClient() {
       if (msalInstance) return msalInstance;
+      const MsalLibrary = getMsalLibrary();
+      if (!MsalLibrary) {
+        setOneDriveStatus("Microsoft auth library unavailable", false);
+        els.oneDriveNotice.textContent = "The Microsoft auth script did not load. Please refresh the page and try again.";
+        return null;
+      }
+
       const redirectUri = window.location.origin === "null"
         ? "http://localhost"
         : `${window.location.origin}${window.location.pathname}`;
-      msalInstance = new msal.PublicClientApplication({
+      msalInstance = new MsalLibrary.PublicClientApplication({
         auth: {
           clientId: "04b07795-8ddb-461a-bbee-02f9e1bf7bfe",
           authority: "https://login.microsoftonline.com/consumers",
@@ -1010,6 +1026,7 @@
     async function connectOneDrive() {
       try {
         const instance = ensureOneDriveClient();
+        if (!instance) return null;
         const accounts = instance.getAllAccounts();
         const request = { scopes: ["User.Read", "Files.ReadWrite"] };
         let result;
