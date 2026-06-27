@@ -398,19 +398,6 @@
       gap: 8px;
     }
 
-    .sync-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .sync-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
     .actions {
       display: flex;
       align-items: center;
@@ -467,10 +454,6 @@
       .meta-grid {
         grid-template-columns: 1fr;
       }
-
-      .sync-grid {
-        grid-template-columns: 1fr;
-      }
     }
   </style>
 </head>
@@ -517,6 +500,25 @@
     </section>
 
     <section id="workspace" class="workspace">
+      <section class="panel section">
+        <div class="section-head">
+          <div>
+            <h2>OneDrive Excel Sync</h2>
+            <span class="small">Keep notes in an Excel workbook saved in OneDrive.</span>
+          </div>
+        </div>
+        <div class="status">
+          <span id="oneDriveDot" class="dot"></span>
+          <span id="oneDriveStatus">Not connected</span>
+        </div>
+        <div class="controls">
+          <button id="connectOneDriveBtn" class="ghost" type="button">Connect OneDrive</button>
+          <button id="syncOneDriveBtn" type="button">Sync to Excel</button>
+          <button id="importOneDriveBtn" class="ghost" type="button">Import from Excel</button>
+        </div>
+        <div class="notice" id="oneDriveNotice">Sign in with your Microsoft account to sync notes to a workbook named MediScribe-Notes.xlsx in OneDrive.</div>
+      </section>
+
       <div class="topgrid">
         <section class="panel section">
           <div class="section-head">
@@ -560,61 +562,6 @@
       <section class="panel section">
         <div class="section-head">
           <div>
-            <h2>Cloud Sync</h2>
-            <span class="small">Supabase is the primary sync target. SharePoint can keep a backup copy.</span>
-          </div>
-          <span id="syncStatus" class="pill">Not configured</span>
-        </div>
-        <h3 style="margin: 0 0 10px;">Supabase Primary Sync</h3>
-        <div class="sync-grid">
-          <label>
-            Supabase Project URL
-            <input id="supabaseUrlInput" placeholder="https://your-project.supabase.co">
-          </label>
-          <label>
-            Supabase Anon Key
-            <input id="supabaseAnonKeyInput" placeholder="Public anon key">
-          </label>
-          <label>
-            Table Name
-            <input id="supabaseTableInput" placeholder="mediscribe_notes">
-          </label>
-        </div>
-        <div class="sync-actions" style="margin-top: 14px;">
-          <button id="saveSupabaseConfigBtn" class="ghost" type="button">Save Supabase config</button>
-        </div>
-
-        <h3 style="margin: 18px 0 10px;">SharePoint Backup Sync</h3>
-        <div class="sync-grid">
-          <label>
-            Tenant ID
-            <input id="tenantIdInput" placeholder="Directory tenant ID">
-          </label>
-          <label>
-            Client ID
-            <input id="clientIdInput" placeholder="Application client ID">
-          </label>
-          <label>
-            SharePoint Site ID
-            <input id="siteIdInput" placeholder="Graph site ID">
-          </label>
-          <label>
-            SharePoint List ID
-            <input id="listIdInput" placeholder="Graph list ID">
-          </label>
-        </div>
-        <div class="sync-actions" style="margin-top: 14px;">
-          <button id="saveGraphConfigBtn" class="ghost" type="button">Save Graph config</button>
-          <button id="microsoftSignInBtn" type="button">Sign in with Microsoft</button>
-          <button id="microsoftSignOutBtn" class="ghost" type="button">Sign out</button>
-          <button id="retrySyncBtn" class="ghost" type="button">Retry unsynced notes</button>
-        </div>
-        <div id="syncMessage" class="notice" style="margin-top: 12px;">Notes save locally first. Supabase is attempted first; SharePoint is attempted as backup when configured.</div>
-      </section>
-
-      <section class="panel section">
-        <div class="section-head">
-          <div>
             <h2>Structured Summary</h2>
             <span class="small">Review and edit each category before saving.</span>
           </div>
@@ -649,16 +596,12 @@
     </section>
   </main>
 
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.1/dist/xlsx.full.min.js"></script>
   <script>
     const accountKey = "mediscribe.accounts";
     const noteKey = "mediscribe.notes";
-    const supabaseConfigKey = "mediscribe.supabaseConfig";
-    const graphConfigKey = "mediscribe.graphConfig";
-    const msalScriptUrls = [
-      "https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js",
-      "https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js",
-      "https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"
-    ];
+    const oneDriveFileName = "MediScribe-Notes.xlsx";
     const els = {
       loginPanel: document.getElementById("loginPanel"),
       workspace: document.getElementById("workspace"),
@@ -686,21 +629,13 @@
       categoriseBtn: document.getElementById("categoriseBtn"),
       saveBtn: document.getElementById("saveBtn"),
       exportBtn: document.getElementById("exportBtn"),
-      syncStatus: document.getElementById("syncStatus"),
-      supabaseUrlInput: document.getElementById("supabaseUrlInput"),
-      supabaseAnonKeyInput: document.getElementById("supabaseAnonKeyInput"),
-      supabaseTableInput: document.getElementById("supabaseTableInput"),
-      saveSupabaseConfigBtn: document.getElementById("saveSupabaseConfigBtn"),
-      tenantIdInput: document.getElementById("tenantIdInput"),
-      clientIdInput: document.getElementById("clientIdInput"),
-      siteIdInput: document.getElementById("siteIdInput"),
-      listIdInput: document.getElementById("listIdInput"),
-      saveGraphConfigBtn: document.getElementById("saveGraphConfigBtn"),
-      microsoftSignInBtn: document.getElementById("microsoftSignInBtn"),
-      microsoftSignOutBtn: document.getElementById("microsoftSignOutBtn"),
-      retrySyncBtn: document.getElementById("retrySyncBtn"),
-      syncMessage: document.getElementById("syncMessage"),
       history: document.getElementById("history"),
+      connectOneDriveBtn: document.getElementById("connectOneDriveBtn"),
+      syncOneDriveBtn: document.getElementById("syncOneDriveBtn"),
+      importOneDriveBtn: document.getElementById("importOneDriveBtn"),
+      oneDriveDot: document.getElementById("oneDriveDot"),
+      oneDriveStatus: document.getElementById("oneDriveStatus"),
+      oneDriveNotice: document.getElementById("oneDriveNotice"),
       familyHistory: document.getElementById("familyHistory"),
       allergies: document.getElementById("allergies"),
       timeframe: document.getElementById("timeframe"),
@@ -715,8 +650,9 @@
     let isRecording = false;
     let draftCreatedAt = null;
     let lastTranscriptForCategories = "";
-    let msalApp = null;
-    let msalLoadPromise = null;
+    let msalInstance = null;
+    let oneDriveAccessToken = null;
+    let oneDriveAccount = null;
 
     const categoryFields = [
       ["familyHistory", els.familyHistory],
@@ -736,161 +672,6 @@
 
     function writeStore(key, value) {
       localStorage.setItem(key, JSON.stringify(value));
-    }
-
-    function readGraphConfig() {
-      return readStore(graphConfigKey, {
-        tenantId: "",
-        clientId: "",
-        siteId: "",
-        listId: ""
-      });
-    }
-
-    function readSupabaseConfig() {
-      return readStore(supabaseConfigKey, {
-        url: "",
-        anonKey: "",
-        table: "mediscribe_notes"
-      });
-    }
-
-    function isSupabaseConfigured(config = readSupabaseConfig()) {
-      return Boolean(config.url && config.anonKey && config.table);
-    }
-
-    function isGraphConfigured(config = readGraphConfig()) {
-      return Boolean(config.tenantId && config.clientId && config.siteId && config.listId);
-    }
-
-    function updateSyncMessage(message) {
-      els.syncMessage.textContent = message;
-    }
-
-    function loadScript(src) {
-      return new Promise((resolve, reject) => {
-        const existing = document.querySelector(`script[src="${src}"]`);
-        if (existing) {
-          existing.addEventListener("load", resolve, { once: true });
-          existing.addEventListener("error", reject, { once: true });
-          return;
-        }
-
-        const script = document.createElement("script");
-        script.src = src;
-        script.async = true;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
-    }
-
-    async function ensureMsalLoaded() {
-      if (window.msal) return true;
-      if (!msalLoadPromise) {
-        msalLoadPromise = (async () => {
-          for (const src of msalScriptUrls) {
-            try {
-              await loadScript(src);
-              if (window.msal) return true;
-            } catch {
-              continue;
-            }
-          }
-          return false;
-        })();
-      }
-      return msalLoadPromise;
-    }
-
-    function hydrateGraphConfig() {
-      const supabaseConfig = readSupabaseConfig();
-      els.supabaseUrlInput.value = supabaseConfig.url || "";
-      els.supabaseAnonKeyInput.value = supabaseConfig.anonKey || "";
-      els.supabaseTableInput.value = supabaseConfig.table || "mediscribe_notes";
-
-      const config = readGraphConfig();
-      els.tenantIdInput.value = config.tenantId || "";
-      els.clientIdInput.value = config.clientId || "";
-      els.siteIdInput.value = config.siteId || "";
-      els.listIdInput.value = config.listId || "";
-      refreshGraphStatus();
-      ensureMsalLoaded().then(() => refreshGraphStatus());
-    }
-
-    function saveSupabaseConfig() {
-      const config = {
-        url: els.supabaseUrlInput.value.trim().replace(/\/+$/, ""),
-        anonKey: els.supabaseAnonKeyInput.value.trim(),
-        table: els.supabaseTableInput.value.trim() || "mediscribe_notes"
-      };
-      writeStore(supabaseConfigKey, config);
-      refreshGraphStatus();
-      updateSyncMessage(isSupabaseConfigured(config)
-        ? "Supabase config saved. New notes will sync to Supabase first."
-        : "Supabase config saved, but Project URL, Anon Key, and Table Name are required for primary sync.");
-    }
-
-    function saveGraphConfig() {
-      const config = {
-        tenantId: els.tenantIdInput.value.trim(),
-        clientId: els.clientIdInput.value.trim(),
-        siteId: els.siteIdInput.value.trim(),
-        listId: els.listIdInput.value.trim()
-      };
-      writeStore(graphConfigKey, config);
-      msalApp = null;
-      initialiseMsal();
-      refreshGraphStatus();
-      updateSyncMessage(isGraphConfigured(config)
-        ? "SharePoint backup config saved. Sign in with Microsoft to enable backup sync."
-        : "SharePoint backup config saved, but all four fields are required before backup sync can run.");
-    }
-
-    function initialiseMsal() {
-      const config = readGraphConfig();
-      if (!window.msal || !config.tenantId || !config.clientId) {
-        msalApp = null;
-        return null;
-      }
-
-      if (!msalApp) {
-        msalApp = new msal.PublicClientApplication({
-          auth: {
-            clientId: config.clientId,
-            authority: `https://login.microsoftonline.com/${config.tenantId}`,
-            redirectUri: window.location.href.split("#")[0]
-          },
-          cache: {
-            cacheLocation: "sessionStorage",
-            storeAuthStateInCookie: false
-          }
-        });
-      }
-      return msalApp;
-    }
-
-    function refreshGraphStatus() {
-      const supabaseConfigured = isSupabaseConfigured();
-      const graphConfigured = isGraphConfigured();
-      const app = initialiseMsal();
-      const account = app ? app.getAllAccounts()[0] : null;
-
-      if (!supabaseConfigured && !graphConfigured) {
-        els.syncStatus.textContent = "Not configured";
-      } else if (supabaseConfigured && graphConfigured && account) {
-        els.syncStatus.textContent = "Supabase primary + SharePoint signed in";
-      } else if (supabaseConfigured && graphConfigured) {
-        els.syncStatus.textContent = "Supabase primary + SharePoint configured";
-      } else if (supabaseConfigured) {
-        els.syncStatus.textContent = "Supabase primary configured";
-      } else if (!window.msal) {
-        els.syncStatus.textContent = "SharePoint library unavailable";
-      } else if (account) {
-        els.syncStatus.textContent = `SharePoint signed in: ${account.username}`;
-      } else {
-        els.syncStatus.textContent = "SharePoint backup configured";
-      }
     }
 
     function normaliseUserId(id) {
@@ -1108,17 +889,11 @@
         createdAt: draftCreatedAt || new Date().toISOString(),
         savedAt: new Date().toISOString(),
         transcript: els.transcriptInput.value.trim(),
-        syncStatus: "pending",
-        syncError: "",
-        supabaseSyncStatus: "pending",
-        supabaseSyncError: "",
-        sharePointSyncStatus: "pending",
-        sharePointSyncError: "",
         summary: Object.fromEntries(categoryFields.map(([key, field]) => [key, field.value.trim()]))
       };
     }
 
-    async function saveNote() {
+    function saveNote() {
       if (!activeUser) return;
       categoriseTranscript();
       const note = buildNote();
@@ -1131,9 +906,8 @@
       notes.unshift(note);
       writeStore(noteKey, notes);
       renderHistory();
-      const synced = await syncSingleNote(note.id);
       clearDraft();
-      els.recordStatus.textContent = synced ? "Note saved and synced" : "Note saved locally";
+      els.recordStatus.textContent = "Note saved";
     }
 
     function renderHistory() {
@@ -1146,22 +920,9 @@
 
       els.history.innerHTML = notes.map((note) => {
         const complaint = note.summary.mainComplaints || "No main complaint recorded";
-        const supabaseStatus = note.supabaseSyncStatus || note.syncStatus || "pending";
-        const sharePointStatus = note.sharePointSyncStatus || "pending";
-        const supabaseLabel = supabaseStatus === "synced"
-          ? "Supabase: synced"
-          : supabaseStatus === "failed"
-            ? `Supabase: failed (${note.supabaseSyncError || note.syncError || "Unknown error"})`
-            : "Supabase: pending";
-        const sharePointLabel = sharePointStatus === "synced"
-          ? "SharePoint backup: synced"
-          : sharePointStatus === "failed"
-            ? `SharePoint backup: failed (${note.sharePointSyncError || "Unknown error"})`
-            : "SharePoint backup: pending";
         return `
           <article class="record">
             <strong>${formatDateTime(note.savedAt)}</strong>
-            <span class="small">${escapeHtml(supabaseLabel)} | ${escapeHtml(sharePointLabel)}</span>
             <p>${escapeHtml(complaint).replace(/\n/g, "<br>")}</p>
             <div class="record-actions">
               <button class="ghost" type="button" data-load-note="${note.id}">Load note</button>
@@ -1186,13 +947,6 @@
       els.recordStatus.textContent = "Loaded saved note for review";
     }
 
-    function updateStoredNote(noteId, updates) {
-      const notes = readStore(noteKey, []);
-      const nextNotes = notes.map((note) => note.id === noteId ? { ...note, ...updates } : note);
-      writeStore(noteKey, nextNotes);
-      renderHistory();
-    }
-
     function deleteNote(id) {
       if (!activeUser) return;
       const notes = readStore(noteKey, []);
@@ -1205,227 +959,6 @@
       writeStore(noteKey, notes.filter((item) => !(item.id === id && item.userId === activeUser.id)));
       renderHistory();
       els.recordStatus.textContent = "Saved note deleted";
-    }
-
-    async function signInMicrosoft() {
-      if (!isGraphConfigured()) {
-        updateSyncMessage("Enter and save Tenant ID, Client ID, Site ID, and List ID before signing in.");
-        return null;
-      }
-
-      updateSyncMessage("Loading Microsoft sign-in library...");
-      await ensureMsalLoaded();
-      if (!window.msal) {
-        updateSyncMessage("Microsoft sign-in library did not load. Check internet access, allow Microsoft/CDN scripts, or host this app on SharePoint/HTTPS and refresh.");
-        refreshGraphStatus();
-        return null;
-      }
-
-      const app = initialiseMsal();
-      if (!app) {
-        updateSyncMessage("Microsoft sign-in could not start. Re-save the Graph config and refresh the page.");
-        return null;
-      }
-
-      const result = await app.loginPopup({ scopes: ["Sites.ReadWrite.All"] });
-      refreshGraphStatus();
-      updateSyncMessage(`Signed in as ${result.account.username}.`);
-      return result.account;
-    }
-
-    async function signOutMicrosoft() {
-      const app = initialiseMsal();
-      if (!app) return;
-      const account = app.getAllAccounts()[0];
-      if (account) await app.logoutPopup({ account });
-      refreshGraphStatus();
-      updateSyncMessage("Signed out of Microsoft.");
-    }
-
-    async function getGraphToken() {
-      const app = initialiseMsal();
-      if (!app || !isGraphConfigured()) {
-        throw new Error("Microsoft Graph is not configured.");
-      }
-
-      let account = app.getAllAccounts()[0];
-      if (!account) {
-        account = await signInMicrosoft();
-      }
-
-      try {
-        const result = await app.acquireTokenSilent({
-          account,
-          scopes: ["Sites.ReadWrite.All"]
-        });
-        return result.accessToken;
-      } catch {
-        const result = await app.acquireTokenPopup({
-          account,
-          scopes: ["Sites.ReadWrite.All"]
-        });
-        return result.accessToken;
-      }
-    }
-
-    async function syncNoteToSharePoint(note) {
-      const config = readGraphConfig();
-      const token = await getGraphToken();
-      const response = await fetch(`https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(config.siteId)}/lists/${encodeURIComponent(config.listId)}/items`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          fields: {
-            Title: `${note.userId} - ${formatDateTime(note.savedAt)}`,
-            UserID: note.userId,
-            UserName: note.userName,
-            Transcript: note.transcript,
-            FamilyHistory: note.summary.familyHistory,
-            Allergies: note.summary.allergies,
-            Timeframe: note.summary.timeframe,
-            MainComplaints: note.summary.mainComplaints,
-            OtherKeynotes: note.summary.otherKeynotes,
-            CreatedAt: note.createdAt,
-            SavedAt: note.savedAt,
-            ClientNoteID: note.id
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(`Graph ${response.status}: ${detail || response.statusText}`);
-      }
-
-      return response.json();
-    }
-
-    async function syncNoteToSupabase(note) {
-      const config = readSupabaseConfig();
-      const response = await fetch(`${config.url}/rest/v1/${encodeURIComponent(config.table)}?on_conflict=client_note_id`, {
-        method: "POST",
-        headers: {
-          apikey: config.anonKey,
-          Authorization: `Bearer ${config.anonKey}`,
-          "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=representation"
-        },
-        body: JSON.stringify({
-          client_note_id: note.id,
-          user_id: note.userId,
-          user_name: note.userName,
-          transcript: note.transcript,
-          family_history: note.summary.familyHistory,
-          allergies: note.summary.allergies,
-          timeframe: note.summary.timeframe,
-          main_complaints: note.summary.mainComplaints,
-          other_keynotes: note.summary.otherKeynotes,
-          created_at: note.createdAt,
-          saved_at: note.savedAt
-        })
-      });
-
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(`Supabase ${response.status}: ${detail || response.statusText}`);
-      }
-
-      return response.json();
-    }
-
-    async function syncSingleNote(noteId) {
-      const note = readStore(noteKey, []).find((item) => item.id === noteId);
-      if (!note) return false;
-      const hasSupabase = isSupabaseConfigured();
-      const hasSharePoint = isGraphConfigured();
-      let supabaseSynced = note.supabaseSyncStatus === "synced" || note.syncStatus === "synced";
-
-      if (!hasSupabase) {
-        updateStoredNote(noteId, {
-          supabaseSyncStatus: "pending",
-          supabaseSyncError: "",
-          syncStatus: "pending",
-          syncError: ""
-        });
-        updateSyncMessage("Note saved locally. Complete Supabase config for primary sync.");
-      } else if (!supabaseSynced) {
-        try {
-          const result = await syncNoteToSupabase(note);
-          updateStoredNote(noteId, {
-            supabaseSyncStatus: "synced",
-            supabaseSyncError: "",
-            syncStatus: "synced",
-            syncError: "",
-            supabaseRow: Array.isArray(result) ? result[0] : result
-          });
-          supabaseSynced = true;
-          updateSyncMessage("Note synced to Supabase.");
-        } catch (error) {
-          updateStoredNote(noteId, {
-            supabaseSyncStatus: "failed",
-            supabaseSyncError: error.message,
-            syncStatus: "failed",
-            syncError: error.message
-          });
-          updateSyncMessage(`Supabase sync failed: ${error.message}`);
-        }
-      }
-
-      if (hasSharePoint && note.sharePointSyncStatus !== "synced") {
-        try {
-          const latestNote = readStore(noteKey, []).find((item) => item.id === noteId) || note;
-          const result = await syncNoteToSharePoint(latestNote);
-          updateStoredNote(noteId, {
-            sharePointSyncStatus: "synced",
-            sharePointSyncError: "",
-            sharePointItemId: result.id || ""
-          });
-          updateSyncMessage(supabaseSynced
-            ? "Note synced to Supabase and SharePoint backup."
-            : "Supabase sync failed; note synced to SharePoint backup.");
-        } catch (error) {
-          updateStoredNote(noteId, {
-            sharePointSyncStatus: "failed",
-            sharePointSyncError: error.message
-          });
-          if (supabaseSynced) {
-            updateSyncMessage(`Supabase synced. SharePoint backup failed: ${error.message}`);
-          }
-        }
-      } else if (!hasSharePoint) {
-        updateStoredNote(noteId, {
-          sharePointSyncStatus: "pending",
-          sharePointSyncError: ""
-        });
-      }
-
-      return supabaseSynced;
-    }
-
-    async function retryUnsyncedNotes() {
-      if (!activeUser) return;
-      const hasSharePoint = isGraphConfigured();
-      const unsynced = readStore(noteKey, [])
-        .filter((note) => {
-          if (note.userId !== activeUser.id) return false;
-          const supabaseDone = note.supabaseSyncStatus === "synced" || note.syncStatus === "synced";
-          const sharePointDone = !hasSharePoint || note.sharePointSyncStatus === "synced";
-          return !supabaseDone || !sharePointDone;
-        })
-        .map((note) => note.id);
-
-      if (!unsynced.length) {
-        updateSyncMessage("There are no unsynced notes for this user.");
-        return;
-      }
-
-      updateSyncMessage(`Retrying ${unsynced.length} unsynced note(s).`);
-      for (const noteId of unsynced) {
-        await syncSingleNote(noteId);
-      }
     }
 
     function exportNotes() {
@@ -1448,6 +981,172 @@
         '"': "&quot;",
         "'": "&#039;"
       }[char]));
+    }
+
+    function setOneDriveStatus(message, connected = false) {
+      els.oneDriveStatus.textContent = message;
+      els.oneDriveDot.classList.toggle("live", connected);
+    }
+
+    function ensureOneDriveClient() {
+      if (msalInstance) return msalInstance;
+      const redirectUri = window.location.origin === "null"
+        ? "http://localhost"
+        : `${window.location.origin}${window.location.pathname}`;
+      msalInstance = new msal.PublicClientApplication({
+        auth: {
+          clientId: "04b07795-8ddb-461a-bbee-02f9e1bf7bfe",
+          authority: "https://login.microsoftonline.com/consumers",
+          redirectUri
+        },
+        cache: {
+          cacheLocation: "sessionStorage",
+          storeAuthStateInCookie: false
+        }
+      });
+      return msalInstance;
+    }
+
+    async function connectOneDrive() {
+      try {
+        const instance = ensureOneDriveClient();
+        const accounts = instance.getAllAccounts();
+        const request = { scopes: ["User.Read", "Files.ReadWrite"] };
+        let result;
+
+        if (accounts.length) {
+          result = await instance.acquireTokenSilent({ ...request, account: accounts[0] });
+        } else {
+          result = await instance.loginPopup(request);
+          result = await instance.acquireTokenSilent({ ...request, account: result.account });
+        }
+
+        oneDriveAccessToken = result.accessToken;
+        oneDriveAccount = result.account;
+        setOneDriveStatus(`Connected to ${result.account.username}`, true);
+        els.oneDriveNotice.textContent = `Signed in as ${result.account.username}. Your workbook will be saved as ${oneDriveFileName}.`;
+        return result;
+      } catch (error) {
+        oneDriveAccessToken = null;
+        oneDriveAccount = null;
+        setOneDriveStatus("OneDrive connection failed", false);
+        els.oneDriveNotice.textContent = `Unable to connect to OneDrive: ${error.message || error}`;
+        return null;
+      }
+    }
+
+    function buildOneDriveRows() {
+      const notes = readStore(noteKey, []);
+      return notes.map((note) => ({
+        id: note.id,
+        userId: note.userId,
+        userName: note.userName,
+        createdAt: note.createdAt,
+        savedAt: note.savedAt,
+        transcript: note.transcript,
+        familyHistory: note.summary?.familyHistory || "",
+        allergies: note.summary?.allergies || "",
+        timeframe: note.summary?.timeframe || "",
+        mainComplaints: note.summary?.mainComplaints || "",
+        otherKeynotes: note.summary?.otherKeynotes || ""
+      }));
+    }
+
+    async function syncToOneDriveExcel() {
+      if (!oneDriveAccessToken) {
+        const connected = await connectOneDrive();
+        if (!connected) return;
+      }
+
+      try {
+        setOneDriveStatus("Preparing workbook…", true);
+        const workbook = XLSX.utils.book_new();
+        const rows = buildOneDriveRows();
+        const sheet = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(workbook, sheet, "Notes");
+
+        const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const blob = new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+
+        setOneDriveStatus("Uploading workbook to OneDrive…", true);
+        const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(oneDriveFileName)}:/content`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${oneDriveAccessToken}`,
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          },
+          body: blob
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || "Upload failed");
+        }
+
+        setOneDriveStatus("Synced to OneDrive Excel", true);
+        els.oneDriveNotice.textContent = `Synced notes to ${oneDriveFileName} in OneDrive.`;
+      } catch (error) {
+        setOneDriveStatus("OneDrive sync failed", false);
+        els.oneDriveNotice.textContent = `Unable to sync to OneDrive: ${error.message || error}`;
+      }
+    }
+
+    async function importFromOneDriveExcel() {
+      if (!oneDriveAccessToken) {
+        const connected = await connectOneDrive();
+        if (!connected) return;
+      }
+
+      try {
+        setOneDriveStatus("Downloading workbook…", true);
+        const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(oneDriveFileName)}:/content`, {
+          headers: {
+            Authorization: `Bearer ${oneDriveAccessToken}`
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || "No workbook found");
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const sheetName = workbook.SheetNames[0] || "Notes";
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+
+        if (!rows.length) {
+          throw new Error("The workbook does not contain any notes.");
+        }
+
+        const importedNotes = rows.map((row) => ({
+          id: row.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random())),
+          userId: row.userId || "imported",
+          userName: row.userName || "Imported",
+          createdAt: row.createdAt || new Date().toISOString(),
+          savedAt: row.savedAt || new Date().toISOString(),
+          transcript: row.transcript || "",
+          summary: {
+            familyHistory: row.familyHistory || "",
+            allergies: row.allergies || "",
+            timeframe: row.timeframe || "",
+            mainComplaints: row.mainComplaints || "",
+            otherKeynotes: row.otherKeynotes || ""
+          }
+        }));
+
+        const existingNotes = readStore(noteKey, []);
+        const mergedNotes = [...importedNotes, ...existingNotes.filter((note) => !importedNotes.some((item) => item.id === note.id))];
+        writeStore(noteKey, mergedNotes);
+        renderHistory();
+        setOneDriveStatus("Imported notes from OneDrive Excel", true);
+        els.oneDriveNotice.textContent = `Imported ${importedNotes.length} note(s) from ${oneDriveFileName}.`;
+      } catch (error) {
+        setOneDriveStatus("OneDrive import failed", false);
+        els.oneDriveNotice.textContent = `Unable to import from OneDrive: ${error.message || error}`;
+      }
     }
 
     els.existingTab.addEventListener("click", () => setMode("existing"));
@@ -1473,17 +1172,9 @@
     });
     els.saveBtn.addEventListener("click", saveNote);
     els.exportBtn.addEventListener("click", exportNotes);
-    els.saveSupabaseConfigBtn.addEventListener("click", saveSupabaseConfig);
-    els.saveGraphConfigBtn.addEventListener("click", saveGraphConfig);
-    els.microsoftSignInBtn.addEventListener("click", () => {
-      signInMicrosoft().catch((error) => updateSyncMessage(`Microsoft sign-in failed: ${error.message}`));
-    });
-    els.microsoftSignOutBtn.addEventListener("click", () => {
-      signOutMicrosoft().catch((error) => updateSyncMessage(`Microsoft sign-out failed: ${error.message}`));
-    });
-    els.retrySyncBtn.addEventListener("click", () => {
-      retryUnsyncedNotes().catch((error) => updateSyncMessage(`Retry failed: ${error.message}`));
-    });
+    els.connectOneDriveBtn.addEventListener("click", connectOneDrive);
+    els.syncOneDriveBtn.addEventListener("click", syncToOneDriveExcel);
+    els.importOneDriveBtn.addEventListener("click", importFromOneDriveExcel);
     els.transcriptInput.addEventListener("input", () => {
       ensureDraftTime();
       window.clearTimeout(els.transcriptInput._timer);
@@ -1502,11 +1193,11 @@
 
     setupSpeech();
     setMode("existing");
-    hydrateGraphConfig();
 
     const savedUserId = sessionStorage.getItem("mediscribe.activeUserId");
     const savedUser = savedUserId ? readStore(accountKey, {})[savedUserId] : null;
     if (savedUser) showWorkspace(savedUser);
   </script>
+
 </body>
 </html>
