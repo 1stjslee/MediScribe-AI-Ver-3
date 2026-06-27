@@ -992,9 +992,12 @@
       const candidates = [
         window.msal,
         window.msalBrowser,
-        window.MSAL
+        window.MSAL,
+        window.PublicClientApplication,
+        window.msal?.PublicClientApplication,
+        window.msalBrowser?.PublicClientApplication
       ];
-      return candidates.find((candidate) => candidate && candidate.PublicClientApplication) || null;
+      return candidates.find((candidate) => candidate && typeof candidate === "function") || null;
     }
 
     function ensureOneDriveClient() {
@@ -1009,7 +1012,7 @@
       const redirectUri = window.location.origin === "null"
         ? "http://localhost"
         : `${window.location.origin}${window.location.pathname}`;
-      msalInstance = new MsalLibrary.PublicClientApplication({
+      msalInstance = new MsalLibrary({
         auth: {
           clientId: "04b07795-8ddb-461a-bbee-02f9e1bf7bfe",
           authority: "https://login.microsoftonline.com/consumers",
